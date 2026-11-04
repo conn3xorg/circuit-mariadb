@@ -35,15 +35,36 @@ locals {
   # mariadb-server.cnf.
   layout = {
     debian = {
+      main     = "/etc/mysql/my.cnf"
       config   = "/etc/mysql/mariadb.conf.d/zz-conn3x.cnf"
       mariadbd = "/usr/sbin/mariadbd"
     }
     redhat = {
+      main     = "/etc/my.cnf"
       config   = "/etc/my.cnf.d/zz-conn3x.cnf"
       mariadbd = "/usr/libexec/mariadbd"
     }
   }
   hosts = { for name, f in local.family : name => local.layout[f] }
+
+  # Tests a new zz-conn3x.cnf with every other option file MariaDB reads,
+  # but not the old zz-conn3x.cnf: a bad option left in that would fail the
+  # test of its fix too. The drop-in directory is copied with the new file
+  # in its place, and the main option file is pointed at the copy.
+  config_test = {
+    for name, h in local.hosts : name => join("; ", [
+      "set -e",
+      "cd /",
+      "d=$(mktemp -d)",
+      "trap 'rm -rf \"$d\"' EXIT",
+      "mkdir \"$d/conf.d\"",
+      "for f in ${dirname(h.config)}/*; do if [ -f \"$f\" ] && [ \"$f\" != ${h.config} ]; then cp \"$f\" \"$d/conf.d/\"; fi; done",
+      "cp %s \"$d/conf.d/${basename(h.config)}\"",
+      "sed \"s#^!includedir ${dirname(h.config)}/*\\$#!includedir $d/conf.d/#\" ${h.main} > \"$d/my.cnf\"",
+      "grep -qxF \"!includedir $d/conf.d/\" \"$d/my.cnf\" || { echo '${h.main} has no !includedir ${dirname(h.config)} line to test the new file in.' >&2; exit 1; }",
+      "${h.mariadbd} --defaults-file=\"$d/my.cnf\" --user=mysql --help --verbose >/dev/null",
+    ])
+  }
 
   port = try(var.settings.port, "3306")
 
@@ -117,24 +138,15 @@ circuit "mariadb" {
     depends_on = [conn3x_command.mariadb_selinux__port]
   }
 
+  # mariadbd reads the option files as a server start would and stops at an
+  # option it doesn't know, so a misspelt setting fails the apply, and the
+  # old file stays for the next restart.
   step "config" {
     file {
-      path    = local.hosts[each.key].config
-      content = local.conf
-      mode    = "0644"
-    }
-  }
-
-  # Before anything restarts, checks the new file. mariadbd reads every
-  # option file as a server start would and stops at an option it doesn't
-  # know, so a misspelt setting fails the apply and the running server
-  # keeps what it had.
-  step "check" {
-    command {
-      command = "cd / && out=$(${local.hosts[each.key].mariadbd} --user=mysql --help --verbose 2>&1 >/dev/null) || { echo \"$out\" >&2; exit 1; }"
-      triggers = {
-        config = conn3x_file.mariadb__config[each.key].revision
-      }
+      path     = local.hosts[each.key].config
+      content  = local.conf
+      mode     = "0644"
+      validate = local.config_test[each.key]
     }
   }
 

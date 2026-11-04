@@ -61,13 +61,12 @@ On each host, in order:
 
 1. On the Red Hat family, when `settings` sets a `port` other than 3306, installs `policycoreutils-python-utils` and labels the port `mysqld_port_t` with `semanage`, so SELinux lets MariaDB bind it. Hosts with SELinux off skip the label.
 2. Installs `mariadb-server` from the distribution.
-3. Writes a drop-in, `zz-conn3x.cnf`, with a `[mariadbd]` section holding `bind_address` and `settings`. Its name sorts after the packages' own files, so your values win.
-4. Checks the new file before anything restarts. `mariadbd --help --verbose` reads every option file the way a server start would, so a misspelt setting fails the apply with MariaDB's own `unknown variable` message, and the server keeps running on what it had. Fix the input and apply again.
-5. Restarts MariaDB when the drop-in changed, then keeps it running and enabled at boot. `bind-address`, `port` and most settings do nothing until a restart.
-6. Removes anonymous users, any `root` account that isn't on `localhost`, `127.0.0.1` or `::1`, the `test` database and the grants that let anyone use it. That's what `mysql_secure_installation` does, apart from setting a root password: `root` logs in over the local socket as the system's root user, with no password to steal, and that's how the circuit connects.
-7. For each of `users`, writes its password to `/etc/conn3x/mariadb/NAME` (root only, mode 0600) and creates one account per entry in `user_hosts`, locked, so none is ever open without a password. It then sets the password and unlocks the accounts, again whenever that file changed or an account was added.
-8. Creates each of `databases`.
-9. Grants each of `grants` on every one of the user's accounts. If someone revokes a privilege by hand, the next plan shows it and the apply grants it again.
+3. Writes a drop-in, `zz-conn3x.cnf`, with a `[mariadbd]` section holding `bind_address` and `settings`. Its name sorts after the packages' own files, so your values win. The new file is tested before it replaces the old one: `mariadbd --help --verbose` reads it with every other option file, the way a server start would. A misspelt setting fails the apply with MariaDB's own `unknown variable` message, and the old file stays, so the running server, a restart and a reboot all keep what they had. Fix the input and apply again.
+4. Restarts MariaDB when the drop-in changed, then keeps it running and enabled at boot. `bind-address`, `port` and most settings do nothing until a restart.
+5. Removes anonymous users, any `root` account that isn't on `localhost`, `127.0.0.1` or `::1`, the `test` database and the grants that let anyone use it. That's what `mysql_secure_installation` does, apart from setting a root password: `root` logs in over the local socket as the system's root user, with no password to steal, and that's how the circuit connects.
+6. For each of `users`, writes its password to `/etc/conn3x/mariadb/NAME` (root only, mode 0600) and creates one account per entry in `user_hosts`, locked, so none is ever open without a password. It then sets the password and unlocks the accounts, again whenever that file changed or an account was added.
+7. Creates each of `databases`.
+8. Grants each of `grants` on every one of the user's accounts. If someone revokes a privilege by hand, the next plan shows it and the apply grants it again.
 
 A password reaches the `mariadb` client on standard input, so it never shows up in `ps`, and the server stores only its hash. It does pass through the server's statement handling, so don't turn on the general query log while you change one.
 
@@ -122,7 +121,7 @@ The flip side is that the version follows the distribution, so two hosts on diff
 
 ## Requirements
 
-Requires Conn3x v0.6.5 or later and systemd on each host, with access to the distribution's package mirrors.
+Requires Conn3x v0.7.0 or later and systemd on each host, with access to the distribution's package mirrors.
 
 ## Tested on
 
