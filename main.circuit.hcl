@@ -110,9 +110,9 @@ circuit "mariadb_selinux" {
 
   step "port" {
     for_each = local.port == "3306" ? [] : [local.port]
-    command {
-      command = "semanage port -a -t mysqld_port_t -p tcp ${item.value} || semanage port -m -t mysqld_port_t -p tcp ${item.value}"
-      unless  = "! selinuxenabled || semanage port -l | awk '$1 == \"mysqld_port_t\" && $2 == \"tcp\"' | grep -qw ${item.value}"
+    selinux_port {
+      port   = item.value
+      setype = "mysqld_port_t"
     }
   }
 }
@@ -135,7 +135,7 @@ circuit "mariadb" {
     package {
       name = "mariadb-server"
     }
-    depends_on = [conn3x_command.mariadb_selinux__port]
+    depends_on = [conn3x_selinux_port.mariadb_selinux__port]
   }
 
   # mariadbd reads the option files as a server start would and stops at an
