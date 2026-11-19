@@ -121,7 +121,7 @@ The flip side is that the version follows the distribution, so two hosts on diff
 
 ## Requirements
 
-Requires Conn3x v0.7.0 or later and systemd on each host, with access to the distribution's package mirrors.
+Requires Conn3x v0.27.0 or later and systemd on each host, with access to the distribution's package mirrors.
 
 ## Tested on
 
