@@ -155,8 +155,8 @@ circuit "mariadb" {
   # running with the new settings. On Red Hat's first apply it's what starts
   # the server.
   step "restart" {
-    command {
-      command = "systemctl restart mariadb"
+    service_action {
+      name = "mariadb"
       triggers = {
         config = conn3x_file.mariadb__config[each.key].revision
       }
